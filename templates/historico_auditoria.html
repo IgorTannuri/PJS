@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block title %}Histórico de Auditoria{% endblock %}
+{% block content %}
+    <h3>Histórico de Auditoria</h3>
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Usuário</th>
+                <th>Ação</th>
+                <th>Detalhes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in auditorias %}
+            <tr>
+                <td>{{ log.data.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ log.username }}</td>
+                <td>{{ log.acao }}</td>
+                <td>{{ log.detalhes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

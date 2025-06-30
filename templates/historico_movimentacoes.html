@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}Histórico de Movimentações{% endblock %}
+{% block content %}
+    <h3>Histórico de Movimentações</h3>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Bebida</th>
+                <th>Tipo</th>
+                <th>Quantidade</th>
+                <th>Usuário</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mov in movimentacoes %}
+            <tr>
+                <td>{{ mov.data.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ mov.bebida_nome }}</td>
+                <td>{{ mov.tipo }}</td>
+                <td>{{ mov.quantidade }}</td>
+                <td>{{ mov.username }}</td>
+                <td>{{ mov.observacao }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="text-center">Nenhuma movimentação registrada.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

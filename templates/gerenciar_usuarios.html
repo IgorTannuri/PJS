@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Gerenciar Usuários{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="form-container p-3">
+            <h4 class="form-title">Adicionar Usuário</h4>
+            <form action="{{ url_for('gerenciar_usuarios') }}" method="POST">
+                <input type="hidden" name="action" value="add">
+                <div class="mb-2"><input type="text" name="username" placeholder="Username" class="form-control" required></div>
+                <div class="mb-2"><input type="password" name="password" placeholder="Senha" class="form-control" required></div>
+                <div class="mb-2">
+                    <select name="nivel_acesso" class="form-select">
+                        <option value="operador">Operador</option>
+                        <option value="administrador">Administrador</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-gold w-100">Adicionar</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <h3>Usuários Cadastrados</h3>
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr><th>Username</th><th>Nível de Acesso</th><th>Ações</th></tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.nivel_acesso }}</td>
+                    <td>
+                        {% if u.id != session.usuario_id %}
+                        <form action="{{ url_for('excluir_usuario', id=u.id) }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Tem certeza?')">Excluir</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block content %}
+    <h3>Relatórios de Vendas</h3>
+    <div class="form-container p-3 mb-4">
+        <form method="POST">
+            <div class="row align-items-end">
+                <div class="col">
+                    <label for="data_inicio">Data Início</label>
+                    <input type="date" class="form-control" name="data_inicio" value="{{ data_inicio if data_inicio else '' }}" required>
+                </div>
+                <div class="col">
+                    <label for="data_fim">Data Fim</label>
+                    <input type="date" class="form-control" name="data_fim" value="{{ data_fim if data_fim else '' }}" required>
+                </div>
+                <div class="col">
+                    <button type="submit" class="btn btn-gold">Gerar Relatório</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if mais_vendidos is not none %}
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <h4>Bebidas Mais Vendidas no Período</h4>
+            <table class="table table-sm">
+                <thead><tr><th>Bebida</th><th>Total Vendido</th></tr></thead>
+                <tbody>
+                    {% for item in mais_vendidos %}
+                    <tr><td>{{ item.nome }}</td><td>{{ item.total_vendido }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-dark-custom border-gold">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Valor Total de Vendas</h5>
+                    <p class="card-text fs-2">R$ {{ "%.2f"|format(valor_total.total or 0) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block title %}Movimentar Estoque{% endblock %}
+{% block content %}
+<div class="form-container">
+    <h2 class="form-title">Registrar Movimentação de Estoque</h2>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="codigo_bebida" class="form-label">Código da Bebida</label>
+            <input type="text" class="form-control" id="codigo_bebida" name="codigo_bebida" required>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="quantidade" class="form-label">Quantidade</label>
+                <input type="number" class="form-control" id="quantidade" name="quantidade" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="tipo" class="form-label">Tipo</label>
+                <select class="form-select" name="tipo" id="tipo">
+                    <option value="entrada">Entrada</option>
+                    <option value="saida">Saída</option>
+                    <option value="ajuste">Ajuste</option>
+                </select>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="fornecedor_id" class="form-label">Fornecedor (para Entradas)</label>
+            <select class="form-select" name="fornecedor_id" id="fornecedor_id">
+                <option value="">Nenhum</option>
+                {% for f in fornecedores %}
+                <option value="{{ f.id }}">{{ f.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="observacao" class="form-label">Observação</label>
+            <textarea class="form-control" name="observacao" id="observacao" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold w-100">Processar</button>
+    </form>
+</div>
+{% endblock %}

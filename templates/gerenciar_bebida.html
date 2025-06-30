@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h2 class="form-title">{{ titulo }}</h2>
+    <form method="POST" action="">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="codigo" class="form-label">Código</label>
+                <input type="text" class="form-control" id="codigo" name="codigo" value="{{ bebida.codigo if bebida else '' }}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="nome" class="form-label">Nome da Bebida</label>
+                <input type="text" class="form-control" id="nome" name="nome" value="{{ bebida.nome if bebida else '' }}" required>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="categoria_id" class="form-label">Categoria</label>
+            <select class="form-select" id="categoria_id" name="categoria_id">
+                <option value="">Sem Categoria</option>
+                {% for cat in categorias %}
+                <option value="{{ cat.id }}" {% if bebida and bebida.categoria_id == cat.id %}selected{% endif %}>{{ cat.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="preco_custo" class="form-label">Preço de Custo</label>
+                <input type="number" step="0.01" class="form-control" id="preco_custo" name="preco_custo" value="{{ bebida.preco_custo if bebida else '0.00' }}">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="preco_venda" class="form-label">Preço de Venda</label>
+                <input type="number" step="0.01" class="form-control" id="preco_venda" name="preco_venda" value="{{ bebida.preco_venda if bebida else '0.00' }}">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="quantidade" class="form-label">Quantidade</label>
+                <input type="number" class="form-control" id="quantidade" name="quantidade" value="{{ bebida.quantidade if bebida else '0' }}">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="quantidade_minima" class="form-label">Estoque Mínimo</label>
+                <input type="number" class="form-control" id="quantidade_minima" name="quantidade_minima" value="{{ bebida.quantidade_minima if bebida else '0' }}">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-gold w-100">Salvar</button>
+    </form>
+</div>
+{% endblock %}
