@@ -1,0 +1,94 @@
+:root {
+    --gold-color: #D4AF37;
+    --dark-bg: #121212;
+    --component-bg: #1E1E1E;
+    --text-light: #E0E0E0;
+    --text-muted: #888;
+    --border-color: #444;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--text-light);
+}
+
+.form-container {
+    max-width: 400px;
+    margin: 5rem auto;
+    padding: 2rem;
+    background-color: var(--component-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.form-title {
+    color: var(--gold-color);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.form-control {
+    background-color: #333;
+    border: 1px solid var(--border-color);
+    color: var(--text-light);
+}
+
+.form-control:focus {
+    background-color: #444;
+    border-color: var(--gold-color);
+    box-shadow: 0 0 0 0.25rem rgba(212, 175, 55, 0.25);
+    color: var(--text-light);
+}
+
+.btn-gold {
+    background-color: var(--gold-color);
+    border-color: var(--gold-color);
+    color: var(--dark-bg);
+    font-weight: bold;
+}
+
+.btn-gold:hover {
+    background-color: #b38f29;
+    border-color: #b38f29;
+    color: var(--dark-bg);
+}
+
+.btn-outline-gold {
+    color: var(--gold-color);
+    border-color: var(--gold-color);
+}
+.btn-outline-gold:hover {
+    color: var(--dark-bg);
+    background-color: var(--gold-color);
+    border-color: var(--gold-color);
+}
+
+a {
+    color: var(--gold-color);
+}
+a:hover {
+    color: #b38f29;
+}
+
+.bg-dark-custom {
+    background-color: var(--component-bg) !important;
+    border-bottom: 1px solid var(--gold-color);
+}
+
+.navbar-brand {
+    color: var(--gold-color) !important;
+    font-weight: bold;
+}
+
+.table {
+    --bs-table-bg: var(--component-bg);
+    --bs-table-color: var(--text-light);
+    --bs-table-border-color: var(--border-color);
+    --bs-table-striped-bg: #2a2a2a;
+    --bs-table-hover-bg: #333333;
+}
+
+.table thead th {
+    color: var(--gold-color);
+    border-bottom-width: 2px;
+}
