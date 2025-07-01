@@ -1,17 +1,33 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+# app.py
+
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from functools import wraps
 from database import Database, hash_senha
-from datetime import datetime
+from werkzeug.utils import secure_filename
 
-#CONFIGURAÇÃO DA APLICAÇÃO
+# --- CONFIGURAÇÃO DA APLICAÇÃO ---
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
 app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_aqui'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+# Função para verificar se a extensão do arquivo é permitida
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
 @app.after_request
 def add_ngrok_header(response):
     response.headers.add('ngrok-skip-browser-warning', 'true')
     return response
 
-#CONEXÃO COM O BANCO DE DADOS
+
+# --- CONEXÃO COM O BANCO DE DADOS ---
 try:
     db = Database()
 except Exception as e:
@@ -19,10 +35,14 @@ except Exception as e:
     exit()
 
 
-#AUTENTICAÇÃO
-def login_required(f):
-    """Garante que o usuário esteja logado para acessar a rota."""
+# --- ROTA PARA SERVIR IMAGENS ---
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+
+# --- DECORATORS E ROTAS DE AUTENTICAÇÃO ---
+def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'usuario_id' not in session:
@@ -34,8 +54,6 @@ def login_required(f):
 
 
 def admin_required(f):
-    """Garante que o usuário tenha nível de administrador para acessar a rota."""
-
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if session.get('nivel_acesso') != 'administrador':
@@ -46,7 +64,6 @@ def admin_required(f):
     return decorated_function
 
 
-#ROTAS DE AUTENTICAÇÃO
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'usuario_id' in session:
@@ -82,7 +99,6 @@ def registrar():
             flash("Este nome de usuário já está em uso.", "danger")
             return redirect(url_for('registrar'))
 
-        # O primeiro usuário registrado no sistema se torna administrador
         total_users = db.executar("SELECT COUNT(*) as count FROM usuarios", fetch='one')['count']
         nivel_acesso = 'administrador' if total_users == 0 else 'operador'
         password_hash = hash_senha(password)
@@ -110,41 +126,35 @@ def index():
     termo_busca = request.args.get('busca', '')
     categoria_id_filtro = request.args.get('categoria', '')
 
-    # Filtra bebidas pelo ID do usuário logado
     query = """
-            SELECT b.id, \
-                   b.codigo, \
-                   b.nome, \
-                   COALESCE(c.nome, 'Sem Categoria') as categoria,
-                   b.quantidade, \
-                   b.preco_custo, \
-                   b.preco_venda, \
-                   b.quantidade_minima
-            FROM bebidas b
-                     LEFT JOIN categorias c ON b.categoria_id = c.id
-            WHERE b.usuario_id = %s \
-              AND (LOWER(b.nome) LIKE %s OR LOWER(b.codigo) LIKE %s) \
-            """
+        SELECT b.id, b.codigo, b.nome, COALESCE(c.nome, 'Sem Categoria') as categoria,
+               b.quantidade, b.preco_venda, b.quantidade_minima, b.imagem_url
+        FROM bebidas b 
+        LEFT JOIN categorias c ON b.categoria_id = c.id
+        WHERE b.usuario_id = %s AND (LOWER(b.nome) LIKE %s OR LOWER(b.codigo) LIKE %s)
+    """
     params = [user_id, f'%{termo_busca.lower()}%', f'%{termo_busca.lower()}%']
+
+    # Adiciona o filtro de categoria se um foi selecionado
     if categoria_id_filtro:
         query += " AND b.categoria_id = %s"
-        params.append(categoria_id_filtro)
+        params.append(int(categoria_id_filtro))
 
     query += " ORDER BY b.nome"
+
     bebidas = db.executar(query, tuple(params), fetch='all')
 
-    # Busca apenas categorias e alerta usuário
+    # Busca todas as categorias do usuário para popular o menu de filtro
     categorias = db.executar("SELECT * FROM categorias WHERE usuario_id = %s ORDER BY nome", (user_id,), fetch='all')
-    alertas = db.executar(
-        "SELECT nome FROM bebidas WHERE quantidade <= quantidade_minima AND quantidade_minima > 0 AND usuario_id = %s",
-        (user_id,), fetch='all')
 
+    # Busca alertas de estoque baixo
+    alertas = db.executar("SELECT nome FROM bebidas WHERE quantidade <= quantidade_minima AND quantidade_minima > 0 AND usuario_id = %s", (user_id,), fetch='all')
     if alertas:
         nomes_bebidas = ", ".join([a['nome'] for a in alertas])
         flash(f"Alerta de Estoque Baixo! Repor: {nomes_bebidas}", "warning")
 
-    return render_template('index.html', bebidas=bebidas, categorias=categorias, termo_busca=termo_busca,
-                           categoria_filtro=categoria_id_filtro)
+    return render_template('index.html', bebidas=bebidas, categorias=categorias,
+                           termo_busca=termo_busca, categoria_filtro=categoria_id_filtro)
 
 
 @app.route('/bebida/adicionar', methods=['GET', 'POST'])
@@ -152,19 +162,24 @@ def index():
 def adicionar_bebida():
     user_id = session['usuario_id']
     if request.method == 'POST':
+        imagem_url = None
+        if 'imagem' in request.files:
+            file = request.files['imagem']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                imagem_url = filename
+
         try:
-            # Insere a bebida com o do ID do usuário
             db.executar("""
-                        INSERT INTO bebidas (codigo, nome, categoria_id, preco_custo, preco_venda, quantidade,
-                                             quantidade_minima, usuario_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            request.form['codigo'], request.form['nome'],
-                            request.form.get('categoria_id') or None, request.form['preco_custo'],
-                            request.form['preco_venda'], request.form['quantidade'], request.form['quantidade_minima'],
-                            user_id
-                        ))
-            db.registrar_auditoria(user_id, 'Adicionar Bebida', f"Bebida '{request.form['nome']}'")
+                INSERT INTO bebidas (codigo, nome, categoria_id, preco_custo, preco_venda, quantidade,
+                                     quantidade_minima, imagem_url, usuario_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    request.form['codigo'], request.form['nome'], request.form.get('categoria_id') or None,
+                    request.form['preco_custo'], request.form['preco_venda'], request.form['quantidade'],
+                    request.form['quantidade_minima'], imagem_url, user_id
+                ))
             flash("Bebida adicionada com sucesso!", "success")
         except Exception as e:
             flash(f"Erro ao adicionar bebida: {e}", "danger")
@@ -178,36 +193,36 @@ def adicionar_bebida():
 @login_required
 def editar_bebida(id):
     user_id = session['usuario_id']
+    bebida = db.executar("SELECT * FROM bebidas WHERE id = %s AND usuario_id = %s", (id, user_id), fetch='one')
+    if not bebida:
+        flash("Bebida não encontrada.", "danger")
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
+        imagem_url = bebida['imagem_url']
+        if 'imagem' in request.files:
+            file = request.files['imagem']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                imagem_url = filename
+
         try:
-            # Atualiza apenas se o ID do usuario e bebida forem certos
             db.executar("""
-                        UPDATE bebidas
-                        SET codigo=%s,
-                            nome=%s,
-                            categoria_id=%s,
-                            preco_custo=%s,
-                            preco_venda=%s,
-                            quantidade=%s,
-                            quantidade_minima=%s
-                        WHERE id = %s
-                          AND usuario_id = %s
-                        """, (
-                            request.form['codigo'], request.form['nome'], request.form.get('categoria_id') or None,
-                            request.form['preco_custo'], request.form['preco_venda'], request.form['quantidade'],
-                            request.form['quantidade_minima'], id, user_id
-                        ))
-            db.registrar_auditoria(user_id, 'Editar Bebida', f"Bebida '{request.form['nome']}' (ID: {id})")
+                UPDATE bebidas
+                SET codigo=%s,nome=%s,categoria_id=%s,preco_custo=%s,preco_venda=%s,
+                    quantidade=%s,quantidade_minima=%s,imagem_url=%s
+                WHERE id = %s AND usuario_id = %s
+                """, (
+                    request.form['codigo'], request.form['nome'], request.form.get('categoria_id') or None,
+                    request.form['preco_custo'], request.form['preco_venda'], request.form['quantidade'],
+                    request.form['quantidade_minima'], imagem_url, id, user_id
+                ))
             flash("Bebida atualizada com sucesso!", "success")
         except Exception as e:
             flash(f"Erro ao atualizar bebida: {e}", "danger")
         return redirect(url_for('index'))
 
-    # Busca a bebida apenas se ela pertencer ao usuário logado
-    bebida = db.executar("SELECT * FROM bebidas WHERE id = %s AND usuario_id = %s", (id, user_id), fetch='one')
-    if not bebida:
-        flash("Bebida não encontrada ou você não tem permissão para editá-la.", "danger")
-        return redirect(url_for('index'))
     categorias = db.executar("SELECT * FROM categorias WHERE usuario_id = %s ORDER BY nome", (user_id,), fetch='all')
     return render_template('gerenciar_bebida.html', titulo="Editar Bebida", categorias=categorias, bebida=bebida)
 
@@ -217,7 +232,6 @@ def editar_bebida(id):
 def excluir_bebida(id):
     user_id = session['usuario_id']
     try:
-        # Garante que o usuário só pode excluir a própria bebida
         res = db.executar("DELETE FROM bebidas WHERE id = %s AND usuario_id = %s", (id, user_id))
         if res > 0:
             flash("Bebida excluída com sucesso.", "success")
@@ -229,7 +243,6 @@ def excluir_bebida(id):
     return redirect(url_for('index'))
 
 
-#ROTAS DE CATEGORIAS
 @app.route('/categorias', methods=['GET', 'POST'])
 @login_required
 def gerenciar_categorias():
@@ -265,7 +278,6 @@ def excluir_categoria(id):
     return redirect(url_for('gerenciar_categorias'))
 
 
-#ROTAS DE FORNECEDORES
 @app.route('/fornecedores', methods=['GET', 'POST'])
 @login_required
 def gerenciar_fornecedores():
@@ -308,7 +320,6 @@ def excluir_fornecedor(id):
     return redirect(url_for('gerenciar_fornecedores'))
 
 
-#ROTAS DE MOVIMENTAÇÕES
 @app.route('/movimentacoes', methods=['GET', 'POST'])
 @login_required
 def movimentar_estoque():
@@ -321,7 +332,6 @@ def movimentar_estoque():
             observacao = request.form['observacao']
             fornecedor_id = request.form.get('fornecedor_id') or None
 
-            # Busca a bebida que pertence ao usuário logado
             bebida = db.executar("SELECT id, nome, quantidade FROM bebidas WHERE codigo = %s AND usuario_id = %s",
                                  (codigo_bebida, user_id), fetch='one')
             if not bebida:
@@ -344,9 +354,10 @@ def movimentar_estoque():
             db.executar(
                 """INSERT INTO movimentacoes (bebida_id, tipo, quantidade, observacao, fornecedor_id, usuario_id)
                    VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (bebida_id, tipo, quantidade, observacao, fornecedor_id, user_id))
+                (bebida_id, tipo, quantidade, observacao, fornecedor_id, user_id))
 
-            db.registrar_auditoria(user_id, 'Movimentação de Estoque', f"Tipo: {tipo}, Bebida: '{bebida['nome']}', Qtd: {quantidade}")
+            db.registrar_auditoria(user_id, 'Movimentação de Estoque',
+                                   f"Tipo: {tipo}, Bebida: '{bebida['nome']}', Qtd: {quantidade}")
             flash("Movimentação registrada com sucesso!", "success")
             return redirect(url_for('historico_movimentacoes'))
 
@@ -354,14 +365,15 @@ def movimentar_estoque():
             flash(f"Erro ao processar movimentação: {e}", "danger")
             return redirect(url_for('movimentar_estoque'))
 
-    fornecedores = db.executar("SELECT id, nome FROM fornecedores WHERE usuario_id = %s ORDER BY nome", (user_id,), fetch='all')
+    fornecedores = db.executar("SELECT id, nome FROM fornecedores WHERE usuario_id = %s ORDER BY nome", (user_id,),
+                               fetch='all')
     return render_template('movimentacoes.html', fornecedores=fornecedores)
+
 
 @app.route('/historico-movimentacoes')
 @login_required
 def historico_movimentacoes():
     user_id = session['usuario_id']
-    # Busca movimentações apenas do usuário logado
     movs = db.executar("""
                        SELECT m.data, b.nome as bebida_nome, m.tipo, m.quantidade, u.username, m.observacao
                        FROM movimentacoes m
@@ -372,7 +384,7 @@ def historico_movimentacoes():
                        """, (user_id,), fetch='all')
     return render_template('historico_movimentacoes.html', movimentacoes=movs)
 
-#ROTAS DE RELATÓRIOS
+
 @app.route('/relatorios', methods=['GET', 'POST'])
 @login_required
 def relatorios():
@@ -382,25 +394,33 @@ def relatorios():
         data_fim = request.form['data_fim']
 
         query_mais_vendidos = """
-                              SELECT p.nome, SUM(m.quantidade) as total_vendido FROM movimentacoes m
-                                                                                         JOIN bebidas p ON m.bebida_id = p.id
-                              WHERE m.tipo = 'saida' AND m.usuario_id = %s AND m.data BETWEEN %s AND %s
-                              GROUP BY p.nome ORDER BY total_vendido DESC \
+                              SELECT p.nome, SUM(m.quantidade) as total_vendido
+                              FROM movimentacoes m
+                                       JOIN bebidas p ON m.bebida_id = p.id
+                              WHERE m.tipo = 'saida'
+                                AND m.usuario_id = %s
+                                AND m.data BETWEEN %s AND %s
+                              GROUP BY p.nome
+                              ORDER BY total_vendido DESC
                               """
         mais_vendidos = db.executar(query_mais_vendidos, (user_id, data_inicio, data_fim), fetch='all')
 
         query_valor_total = """
-                            SELECT SUM(m.quantidade * p.preco_venda) as total FROM movimentacoes m
-                                                                                       JOIN bebidas p ON m.bebida_id = p.id
-                            WHERE m.tipo = 'saida' AND m.usuario_id = %s AND m.data BETWEEN %s AND %s \
+                            SELECT SUM(m.quantidade * p.preco_venda) as total
+                            FROM movimentacoes m
+                                     JOIN bebidas p ON m.bebida_id = p.id
+                            WHERE m.tipo = 'saida'
+                              AND m.usuario_id = %s
+                              AND m.data BETWEEN %s AND %s
                             """
         valor_total = db.executar(query_valor_total, (user_id, data_inicio, data_fim), fetch='one')
 
-        return render_template('relatorios.html', mais_vendidos=mais_vendidos, valor_total=valor_total, data_inicio=data_inicio, data_fim=data_fim)
+        return render_template('relatorios.html', mais_vendidos=mais_vendidos, valor_total=valor_total,
+                               data_inicio=data_inicio, data_fim=data_fim)
 
     return render_template('relatorios.html', mais_vendidos=None, valor_total=None)
 
-#ROTAS DE ADMINISTRAÇÃO (todo o sistema)
+
 @app.route('/usuarios', methods=['GET', 'POST'])
 @admin_required
 def gerenciar_usuarios():
@@ -417,15 +437,15 @@ def gerenciar_usuarios():
                     flash("Senha é obrigatória para novos usuários.", "warning")
                 else:
                     db.executar("INSERT INTO usuarios (username, password_hash, nivel_acesso) VALUES (%s, %s, %s)",
-                               (username, hash_senha(password), nivel_acesso))
+                                (username, hash_senha(password), nivel_acesso))
                     flash("Usuário adicionado.", "success")
             elif action == 'update':
                 if password:
                     db.executar("UPDATE usuarios SET username=%s, password_hash=%s, nivel_acesso=%s WHERE id=%s",
-                               (username, hash_senha(password), nivel_acesso, id))
+                                (username, hash_senha(password), nivel_acesso, id))
                 else:
                     db.executar("UPDATE usuarios SET username=%s, nivel_acesso=%s WHERE id=%s",
-                               (username, nivel_acesso, id))
+                                (username, nivel_acesso, id))
                 flash("Usuário atualizado.", "success")
         except Exception as e:
             flash(f"Erro: {e}", "danger")
@@ -433,6 +453,7 @@ def gerenciar_usuarios():
 
     usuarios = db.executar("SELECT id, username, nivel_acesso FROM usuarios ORDER BY username", fetch='all')
     return render_template('gerenciar_usuarios.html', usuarios=usuarios)
+
 
 @app.route('/usuario/excluir/<int:id>', methods=['POST'])
 @admin_required
@@ -447,15 +468,16 @@ def excluir_usuario(id):
         flash(f"Erro ao excluir: {e}", "danger")
     return redirect(url_for('gerenciar_usuarios'))
 
+
 @app.route('/auditoria')
 @admin_required
 def historico_auditoria():
     auditorias = db.executar("""
-        SELECT a.data, u.username, a.acao, a.detalhes
-        FROM auditoria a
-        LEFT JOIN usuarios u ON a.usuario_id = u.id
-        ORDER BY a.data DESC
-    """, fetch='all')
+                             SELECT a.data, u.username, a.acao, a.detalhes
+                             FROM auditoria a
+                                      LEFT JOIN usuarios u ON a.usuario_id = u.id
+                             ORDER BY a.data DESC
+                             """, fetch='all')
     return render_template('historico_auditoria.html', auditorias=auditorias)
 
 
