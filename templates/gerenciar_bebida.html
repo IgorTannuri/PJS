@@ -5,7 +5,7 @@
 {% block content %}
 <div class="form-container">
     <h2 class="form-title">{{ titulo }}</h2>
-    <form method="POST" action="">
+    <form method="POST" action="" enctype="multipart/form-data">
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label for="codigo" class="form-label">Código</label>
@@ -45,6 +45,17 @@
                 <input type="number" class="form-control" id="quantidade_minima" name="quantidade_minima" value="{{ bebida.quantidade_minima if bebida else '0' }}">
             </div>
         </div>
+
+        <!-- CAMPO PARA UPLOAD DE IMAGEM -->
+        <div class="mb-3">
+            <label for="imagem" class="form-label">Foto da Bebida</label>
+            <input class="form-control" type="file" id="imagem" name="imagem">
+            {% if bebida and bebida.imagem_url %}
+                <small class="form-text text-muted">Imagem atual: {{ bebida.imagem_url }}. Envie um novo arquivo para substituir.</small>
+                <img src="{{ url_for('uploaded_file', filename=bebida.imagem_url) }}" alt="Imagem atual" class="img-thumbnail mt-2" width="100">
+            {% endif %}
+        </div>
+
         <button type="submit" class="btn btn-gold w-100">Salvar</button>
     </form>
 </div>
