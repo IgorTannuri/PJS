@@ -40,6 +40,11 @@ body {
     color: var(--text-light);
 }
 
+.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
 .btn-gold {
     background-color: var(--gold-color);
     border-color: var(--gold-color);
